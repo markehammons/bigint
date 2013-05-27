@@ -20,7 +20,7 @@ object BigIntTests extends Properties("New BigInt") {
       (((0 to t) foldLeft (BigInt(a))) {case (a,b) => a+a} toString(2))
   })
 
-  property("long multiplication") = forAll((a: Long, b: Long) =>
+  /*property("long multiplication") = forAll((a: Long, b: Long) =>
     (org.math.BigInt.valueOf(a) * org.math.BigInt.valueOf(b)).toString == (BigInt(a) * b).toString(2)
   )
 
@@ -35,7 +35,7 @@ object BigIntTests extends Properties("New BigInt") {
   property("pow") = forAll((l: Long) => {
     val n = 2
     (org.math.BigInt.valueOf(l) ^ n).toString == (BigInt(l).pow(n).toString(2))
-  })
+  })*/
 
   property("shiftleft") = forAll((a: Long, n: Byte) =>
     if(n >= 0) org.math.BigInt.valueOf(a).shiftLeft(n*32).toString == (BigInt(a) << n*32).toString(2) else true

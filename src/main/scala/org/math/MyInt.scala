@@ -10,10 +10,22 @@ package org.math
 
 object MyInt {
 
-  implicit class RichULong(val l: Long) extends AnyVal {
+  //DON'T USE - SLOW
+  /*implicit class RichULong(val l: Long) extends AnyVal {
     @inline
     def <|(oL: Long) = if(l < 0 || oL < 0) (l >>> 1) < (oL >>> 1) else l < oL
-  }
+
+    @inline
+    def xor(a: Boolean, b: Boolean) = {
+      val x = nand(a,b)
+      val y = nand(a,x)
+      val z = nand(b,x)
+      nand(y,z)
+    }
+
+    @inline
+    def nand(a: Boolean, b: Boolean) = !(a && b)
+  }*/
 
   private val cleanBit = Long.MaxValue
 
@@ -38,7 +50,10 @@ object MyInt {
   private def overcheck(res: Long) = res >>> 63
 
   @inline
-  private def overflowDetect(r: Long, a: Long, b: Long) = (a != 1 && b != 1) && r <| a
+  private def ult(a: Long, b: Long) = if(a < 0 && b < 0) (a >>> 1) < (b >>> 1) else a < b
+
+  @inline
+  private def overflowDetect(r: Long, a: Long, b: Long) = (a != 1 && b != 1) && ult(r, a)
 
 
   /*@inline
@@ -68,10 +83,7 @@ object MyInt {
     } else {
       signum = 1
     }
-    if((value & cleanBit) != value)  //catches Long.MinValue
-      MyInt(Array(signum, 1, value & cleanBit))
-    else
-      MyInt(Array(signum,value))
+    MyInt(Array(signum,value))
   }
 
   private val ZERO = new MyIntImpl(Array(0l,0l))
@@ -85,22 +97,23 @@ object MyInt {
     while(subIndex > 1) {
       minIndex -= 1
       subIndex -= 1
-      val res = minuend(minIndex) -
-        subtrahend(subIndex) + difference
-      result(minIndex) = res & cleanBit
+      val min = minuend(minIndex)
+      val sub = subtrahend(subIndex)
+      val res = min - sub + difference
+      result(minIndex) = res
 
-      difference = res >>> 63
+      difference = if(overflowDetect(res,min,sub)) 1 else 0
     }
 
     var borrow = difference != 0
 
-    while(minIndex > 0 && borrow) {
+    while(minIndex > 1 && borrow) {
       minIndex -= 1
       result(minIndex) = minuend(minIndex) - 1
       borrow = result(minIndex) == -1
     }
 
-    while(minIndex > 0) {
+    while(minIndex > 1) {
       minIndex -= 1
       result(minIndex) = minuend(minIndex)
     }
@@ -118,15 +131,17 @@ object MyInt {
     var sum = 0l
     if(yIndex == 2) {
       xIndex -= 1
+      val (a,b) = (x(xIndex), y(1))
       val res = x(xIndex) + y(1)
-      sum = res >>> 63
-      result(xIndex) = res & cleanBit
+      sum = if(overflowDetect(res, a, b)) 1 else 0
+      result(xIndex) = res
     } else {
       while(yIndex > 1) {
         xIndex -= 1; yIndex -= 1
-        val res = x(xIndex) + y(yIndex) + sum
-        result(xIndex) = res & cleanBit
-        sum = res >>> 63
+        val (a,b) = (x(xIndex), y(yIndex))
+        val res = a + b + sum
+        result(xIndex) = res
+        sum = if(overflowDetect(res, a,b)) 1 else 0
       }
     }
 
@@ -164,7 +179,7 @@ trait MyInt extends Any {
   (if(signum == -1) "-" else "") + x(1).toBinaryString +
     (if(x.length > 2) (2 until x.length).map({i =>
       val y = x(i).toBinaryString
-      (("0" * (63 - y.length)) + y)
+      (("0" * (64 - y.length)) + y)
     }).foldLeft ("") ((a,b) => a + b) else "")
   }
 
