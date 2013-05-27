@@ -22,8 +22,19 @@ object BigIntBenches {
     val x = MyInt(Long.MaxValue)
     val y = scala.math.BigInt(Long.MaxValue)
 
-    "MyInt took " +
-      (time(((0 to times) foldLeft (x)) {case (a,b) => a+a}) - time(((0 to times) foldLeft (y)) {case (a,b) => a+a})) +
-      " milliseconds more"
+    val res = time(((0 to times) foldLeft (x)) {case (a,b) => a+a}) - time(((0 to times) foldLeft (y)) {case (a,b) => a+a})
+    s"MyInt took ${res} milliseconds more"
+  }
+
+  def smallBench(times: Int) = {
+    val x = MyInt(Long.MaxValue)
+    val y = scala.math.BigInt(Long.MaxValue)
+
+    val res = time{for(i <- 0 to times) x+x} - time{for(i <- 0 to times) y+y}
+  }
+
+  def main(args: Array[String]) {
+    println(s"lladdBench: ${lladdbench(4000000)}")
+    println(s"Small bench: ${smallBench(4000000)}")
   }
 }
