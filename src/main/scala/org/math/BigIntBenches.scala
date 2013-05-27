@@ -31,10 +31,11 @@ object BigIntBenches {
     val y = scala.math.BigInt(Long.MaxValue)
 
     val res = time{for(i <- 0 to times) x+x} - time{for(i <- 0 to times) y+y}
+    s"My Int took ${res} milliseconds more"
   }
 
   def main(args: Array[String]) {
-    println(s"lladdBench: ${lladdbench(4000000)}")
-    println(s"Small bench: ${smallBench(4000000)}")
+    println(s"lladdBench: ${lladdbench(1000000)}")
+    println(s"Small bench: ${smallBench(1000000)}")
   }
 }
