@@ -53,7 +53,7 @@ object MyInt {
   private def ult(a: Long, b: Long) = if(a < 0 && b < 0) (a >>> 1) < (b >>> 1) else a < b
 
   @inline
-  private def overflowDetect(r: Long, a: Long, b: Long) = (a != 1 && b != 1) && ult(r, a)
+  private def overflowDetect(r: Long, a: Long, b: Long) = ult(r, a) && (a != 1 || b != 1)
 
 
   /*@inline
@@ -132,7 +132,7 @@ object MyInt {
     if(yIndex == 2) {
       xIndex -= 1
       val (a,b) = (x(xIndex), y(1))
-      val res = x(xIndex) + y(1)
+      val res = a + b
       sum = if(overflowDetect(res, a, b)) 1 else 0
       result(xIndex) = res
     } else {
