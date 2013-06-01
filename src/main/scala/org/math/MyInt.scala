@@ -50,10 +50,10 @@ object MyInt {
   private def overcheck(res: Long) = res >>> 63
 
   @inline
-  private def ult(a: Long, b: Long) = if(a < 0 && b < 0) (a >>> 1) < (b >>> 1) else a < b
+  private def ult(a: Long, b: Long) = if(a < 0 || b < 0) (a >>> 1) < (b >>> 1) else a < b
 
   @inline
-  private def overflowDetect(r: Long, a: Long, b: Long) = ult(r, a) && (a != 1 || b != 1)
+  private def overflowDetect(r: Long, a: Long, b: Long) = ult(r, a) && ult(r,b)
 
 
   /*@inline
@@ -180,7 +180,7 @@ trait MyInt extends Any {
     (if(x.length > 2) (2 until x.length).map({i =>
       val y = x(i).toBinaryString
       (("0" * (64 - y.length)) + y)
-    }).foldLeft ("") ((a,b) => a + b) else "")
+    }).foldLeft ("") (_+_) else "")
   }
 
   def signum = x.head
