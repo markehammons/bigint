@@ -8,7 +8,7 @@ import org.scalacheck.Prop.forAll
 import org.scalacheck.Properties
 import org.math.MyInt
 
-object BigIntTests extends Properties("New BigInt") {
+object BigIntTests extends Properties("MyInt") {
   property("long addition") = forAll((b: Long, a: Long) =>
     (MyInt(a) + MyInt(b)).toString == (BigInt(a) + b).toString(2)
   )
@@ -18,6 +18,19 @@ object BigIntTests extends Properties("New BigInt") {
     val t = math.abs(times)
     (((0 to t) foldLeft(MyInt(a))) {case (a,b) => a+a} toString) ==
       (((0 to t) foldLeft (BigInt(a))) {case (a,b) => a+a} toString(2))
+  })
+
+  property("long multiplication") = forAll((a: Long, b: Long) => {
+    (MyInt(a) * MyInt(b)).toString == (BigInt(a) * BigInt(b)).toString(2)
+  })
+
+  property("big multiplication") = forAll((a: Long, b: Long) => {
+    val x = (MyInt(Long.MaxValue) ** 3) * a
+    val y = (MyInt(Long.MaxValue) ** 3) * b
+    val t = BigInt(Long.MaxValue).pow(3) * a
+    val u = BigInt(Long.MaxValue).pow(3) * b
+
+    (x * y).toString == (t * u).toString(2)
   })
 
   /*property("long multiplication") = forAll((a: Long, b: Long) =>
