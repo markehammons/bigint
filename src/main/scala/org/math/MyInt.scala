@@ -26,8 +26,7 @@ object MyInt {
 
   protected def apply(x: Array[Long]): MyInt = new MyInt(x)
 
-  @inline
-  private def trustedStripLeadingZeroInts(a: Array[Long]) = {
+  private final def trustedStripLeadingZeroInts(a: Array[Long]) = {
     val vlen = a.length
     var keep = 1
 
@@ -45,65 +44,19 @@ object MyInt {
 
   private val lower = 0x00000000FFFFFFFFL
 
-  @inline private def ult(a: Long, b: Long) = if((a ^ b) < 0) (a >>> 1) < (b >>> 1) else a < b
+  private val stripSign = 0x7FFFFFFFFFFFFFFFL
 
-  @inline
-  private def overflowDetect(r: Long, a: Long, b: Long) = ult(r, a)
 
-  /*@inline
-  private def overcheck_old(a: Long, b: Long) = ((((a & mask_32) + (b & mask_32)) >>> 32) + (a >>> 32) + (b >>> 32)) >>> 32*/
+  final def ult(a: Long, b: Long) = a + Long.MinValue < b + Long.MinValue
 
-  @inline final case class DoubleLong(l: (Long,Long)) extends AnyVal {
-    @inline final def +(y: Long) = {
-      val r = l._2 + y
-      DoubleLong(l._1 + (if(ult(r,y)) 1 else 0), r)
-    }
+  final def ult2(a: Long, b: Long) = if(a + Long.MinValue < b + Long.MinValue) 1 else 0
 
-    @inline final def *(b: Long) = {
-      val a = l._2
-      val (aUpper,aLower) = (a >>> 32, a & lower)
-      val (bUpper, bLower) = (b >>> 32, b & lower)
-      val (t) = aUpper * bUpper
-      val u = aUpper * bLower
-      val v = bUpper * aLower
-      val w = aLower * bLower
-      val (uLower, vLower) = ((u & lower) << 32, (v & lower) << 32)
-      val d1 = DoubleLong.add(w,uLower)
-      val d2 = d1 + vLower
-      val down = d2 + l._1
-      val up = t + (u >>> 32) + (v >>> 32) + down.l._1
-      DoubleLong(up,down.l._2)
-    }
+  final def ult4(a: Long, b: Long) = (((a >>> 63) - (b >>> 63)) | (((a& stripSign) - (b & stripSign)) & ((b ^ a) ^ -1))) >>> 63
 
-    @inline final def res = l._2
-    @inline final def carry = l._1
-    @inline final override def toString = l.toString()
-  }
 
-  object DoubleLong {
-    @inline final def apply(c: Long, r: Long): DoubleLong = DoubleLong((c,r))
-    @inline final def apply(r: Long): DoubleLong = DoubleLong((0l,r))
-    @inline final def add(x: Long, y: Long) = {
-      val r = x + y
-      DoubleLong(if(ult(r,x)) 1 else 0, r)
-    }
-    @inline final def mul(a: Long, b: Long) = {
-      val (aUpper,aLower) = (a >>> 32, a & lower)
-      val (bUpper, bLower) = (b >>> 32, b & lower)
-      val (t) = aUpper * bUpper
-      val u = aUpper * bLower
-      val v = bUpper * aLower
-      val w = aLower * bLower
-      val (uLower, vLower) = ((u & lower) << 32, (v & lower) << 32)
-      val d1 = DoubleLong.add(w,uLower)
-      val down = d1 + vLower
-      val up = t + (u >>> 32) + (v >>> 32) + down.carry
-      DoubleLong(up,down.res)
-    }
-  }
 
-  @inline// a seemingly perfect long*long multiplier
-  private def longMul(a: Long, b: Long, c: Long, arr: Array[Long], pos: Int) = {
+  // a seemingly perfect long*long multiplier
+  /*final def longMul(a: Long, b: Long, c: Long, arr: Array[Long], pos: Int) = {
     val (aUpper,aLower) = (a >>> 32, a & lower)
     val (bUpper, bLower) = (b >>> 32, b & lower)
     val (t) = aUpper * bUpper
@@ -115,14 +68,13 @@ object MyInt {
     val d2 = d1 + vLower
     val down = d2 + c
     arr(pos) = down
-    var carry = if(ult(d1, w)) 1 else 0
-    carry += (if(ult(d2, d1)) 1 else 0)
-    carry += (if(ult(down, d2)) 1 else 0)
+    var carry = ult2(d1, w)
+    carry += ult2(d2, d1)
+    carry += ult2(down, d2)
     t + (u >>> 32) + (v >>> 32) + carry
-  }
+  }*/
 
-  @inline
-  private def longMul(a: Long, b: Long, c: Long, d: Long, arr: Array[Long], pos: Int) = {
+  /*final def longMul(a: Long, b: Long, c: Long, d: Long, arr: Array[Long], pos: Int) = {
     val (aUpper, aLower) = (a >>> 32, a & lower)
     val (bUpper, bLower) = (b >>> 32, b & lower)
     val t = aUpper * bUpper
@@ -135,26 +87,112 @@ object MyInt {
     val d3 = d2 + c
     val down = d3 + d
     arr(pos) = down
-    var carry = if(ult(d1, w)) 1 else 0
-    carry += (if(ult(d2, d1)) 1 else 0)
-    carry += (if(ult(d3, d2)) 1 else 0)
-    carry += (if(ult(down, d3)) 1 else 0)
+    var carry = ult2(d1,w)
+    carry += ult2(d2,d1)
+    carry += ult2(d3,d2)
+    carry += ult2(down,d3)
     t + (u >>> 32) + (v >>> 32) + carry
+  }*/
+
+  def shiftLeft(mag: Array[Long], n: Int): Array[Long] = {
+    val nLongs = n >>> 6
+    val nBits = n & 0x3f
+    val magLen = mag.length
+
+    if(nBits == 0) {
+      val newMag = new Array[Long](magLen + nLongs)
+      System.arraycopy(mag,1,newMag,1,magLen - 1)
+      newMag
+    } else {
+      var i = 1
+      val nBits2 = 64 - nBits
+      val highBits = mag(1) >>> nBits2
+      val newMag = if(highBits != 0) {
+        val t = new Array[Long](magLen + nLongs + 1)
+        t(i) = highBits; i += 1
+        t
+      } else {
+        new Array[Long](magLen + nLongs)
+      }
+      var j = 1
+      while(j < magLen-1) {
+        newMag(i) = mag(j) << nBits | mag(j) >>> nBits2; i += 1; j += 1
+      }
+      newMag(i) = mag(j) << nBits
+      newMag
+    }
   }
 
+  def shiftRight(mag: Array[Long], n: Int): Array[Long] = ???
 
-  def multiplyByLong(x: Array[Long], y: Long, sign: Long): MyInt = {
-    val z = multiplyByLong(x,y)
+  def oldLongMul(a:Long, b: Long, c: Long): (Long,Long) = {
+    val (aUpper,aLower) = (a >>> 32, a & lower)
+    val (bUpper, bLower) = (b >>> 32, b & lower)
+    val (t) = aUpper * bUpper
+    val u = aUpper * bLower
+    val v = bUpper * aLower
+    val w = aLower * bLower
+    val (uLower, vLower) = ((u & lower) << 32, (v & lower) << 32)
+    val d1 = w + uLower
+    val d2 = d1 + vLower
+    val down = d2 + c
+    var carry = ult2(d1, w)
+    carry += ult2(d2, d1)
+    carry += ult2(down, d2)
+    (t + (u >>> 32) + (v >>> 32) + carry, down)
+  }
+
+  final def properLongMul(a: Long, b: Long, carry: Long): (Long,Long) = {
+    val (aUpper, aLower) = (a >>> 32, a & lower)
+    val (bUpper, bLower) = (b >>> 32, b & lower)
+
+    val w = aLower * bLower + (carry & lower)
+    val v = bUpper * aLower + (w >>> 32) + (carry >>> 32)
+    val u = aUpper * bLower + (v & lower)
+    val t = aUpper * bUpper + (v >>> 32) + (u >>> 32)
+    val down = (u << 32) + (w & lower)
+    (t,down)
+  }
+
+  final def longMul(a: Long, b: Long, carry: Long, arr: Array[Long], p: Int) = {
+    val aUpper = a >>> 32
+    val aLower = a & lower
+    val bUpper = b >>> 32
+    val bLower = b & lower
+
+    val w = aLower * bLower + (carry & lower)
+    val v = bUpper * aLower + (w >>> 32) + (carry >>> 32)
+    val u = aUpper * bLower + (v & lower)
+    val t = aUpper * bUpper + (v >>> 32) + (u >>> 32)
+    arr(p) = (u << 32) + (w & lower)
+    t
+  }
+
+  final def longMul(a: Long, b: Long, carry: Long, carry2: Long, arr: Array[Long], p: Int) = {
+    val aUpper = a >>> 32
+    val aLower = a & lower
+    val bUpper = b >>> 32
+    val bLower = b & lower
+
+    val w = aLower * bLower + (carry & lower) + (carry2 & lower)
+    val v = bUpper * aLower + (w >>> 32) + (carry >>> 32)
+    val u = aUpper * bLower + (v & lower) + (carry2 >>> 32)
+    val t = aUpper * bUpper + (v >>> 32) + (u >>> 32)
+    arr(p) = (u << 32) + (w & lower)
+    t
+  }
+
+  final private def multiplyByLong(x: Array[Long], xlen: Int, y: Long, sign: Long): MyInt = {
+    val z = multiplyByLong(x,xlen,y)
     z(0) = sign
     MyInt(z)
   }
 
-  final private def multiplyByLong(x: Array[Long], y: Long): Array[Long] = {
-    if(x(1) == 1)
+  final private def multiplyByLong(x: Array[Long], xlen: Int, y: Long): Array[Long] = {
+    if(x == ONE.x)
       Array(0,y)
-    else if(y == 1) {
+    else if(y == 1l) {
       val a = java.util.Arrays.copyOf(x, x.length)
-      a(0) = 0
       a
     } else {
       val xlen = x.length
@@ -172,7 +210,6 @@ object MyInt {
       if(carry == 0l)
         rmag = java.util.Arrays.copyOfRange(rmag, 1, rmag.length)
       else {
-        rmag(0) = 0
         rmag(1) = carry
       }
 
@@ -187,19 +224,21 @@ object MyInt {
     arr
   }
 
-
   final private def multiplyToLen(x: Array[Long], xlen: Int, y: Array[Long], ylen: Int, res: Array[Long]): Array[Long] = {
     val xstart = xlen - 1
     val ystart = ylen - 1
 
-    val z = new Array[Long](xlen-1+ylen)
+    val z = new Array[Long](xstart+ylen)
 
     var carry = 0l
     var j = ystart
-    var k = ystart+xstart
+    val x_xstart = x(xstart)
+    /*@inline @tailrec def loop1(j: Int, k: Int, carry: Long): Long = {
+      if(j > 0) loop1(j-1,k-1,longMul(y(j), x_xstart, carry, z, k)) else carry
+    }*/
     while(j > 0) {
-      carry = longMul(y(j), x(xstart),carry,z,k)
-      j -= 1; k -= 1
+      carry = longMul(y(j), x_xstart, carry, z, j+xstart)
+      j -= 1
     }
 
     z(xstart) = carry
@@ -208,10 +247,10 @@ object MyInt {
     while(i > 0) {
       carry = 0
       j = ystart
-      k = ystart+i
+      val x_i = x(i)
       while(j > 0) {
-        carry = longMul(y(j), x(i), z(k), carry, z, k)
-        j-=1;k-=1
+        carry = longMul(y(j), x_i, z(j+i), carry, z, j+i)
+        j-=1
       }
       z(i) = carry
       i -= 1
@@ -231,11 +270,31 @@ object MyInt {
     res
   }*/
 
-  def multiplyKaratsuba(x: MyInt, y: MyInt) =  ???
+  def multiplyKaratsuba(x: MyInt, y: MyInt) =  {
+    val xLen = x.x.length - 1
+    val yLen = y.x.length - 1
 
-  def multiplyToomCook3(x: MyInt, y: MyInt) = ???
+    val half = (math.max(xLen, yLen) + 1) / 2
 
-  def multiplySchoenhageStrassen(x: MyInt, y: MyInt) = ???
+    val xl = x.getLower(half)
+    val xh = x.getUpper(half)
+    val yl = y.getLower(half)
+    val yh = y.getUpper(half)
+
+    val p1 = xh * yh
+    val p2 = xl * yl
+
+    val p3 = (xh + xl) * (yh + yl)
+
+    val result = (p1 << (128 * half)) + ((p3 - p1 - p2) << (64 * half)) + p2
+
+    if(x.signum != y.signum) -result
+    else result
+  }
+
+  def multiplyToomCook3(x: MyInt, y: MyInt) = {???; ZERO}
+
+  def multiplySchoenhageStrassen(x: MyInt, y: MyInt) = {???; ZERO}
 
   def apply(v: Long): MyInt = {
 
@@ -267,30 +326,25 @@ object MyInt {
       subIndex -= 1
       val min = minuend(minIndex)
       val sub = subtrahend(subIndex)
-      val res = min - sub + difference
-      result(minIndex) = res
+      result(minIndex) = min - (sub + difference)
 
-      difference = if(ult(res,min)) 1 else 0
+      difference = ult2(min,sub)
     }
 
     var borrow = difference != 0
 
-    while(minIndex > 1 && borrow) {
-      minIndex -= 1
-      result(minIndex) = minuend(minIndex) - 1
-      borrow = result(minIndex) == -1
-    }
-
     while(minIndex > 1) {
       minIndex -= 1
-      result(minIndex) = minuend(minIndex)
+      result(minIndex) = minuend(minIndex) - (if(borrow) 1 else 0)
+      if(borrow) borrow = result(minIndex) == -1
     }
 
     result
   }
 
   private final def add(a: Array[Long], b: Array[Long]): Array[Long] = {
-    val (x,y) = if(a.length < b.length) (b,a) else (a,b)
+    val x = if(a.length < b.length) b else a
+    val y = if(a.length < b.length) a else b
 
     var xIndex = x.length
     var yIndex = y.length
@@ -300,22 +354,18 @@ object MyInt {
 
     while(yIndex > 1) {
       xIndex -= 1; yIndex -= 1
-      val (a,b) = (x(xIndex), y(yIndex))
+      val a = x(xIndex)
+      val b = y(yIndex)
       val res = b + a + sum
       result(xIndex) = res
-      sum = if(ult(res, a)) 1 else 0
+      sum = ult2(res,a)
     }
 
     var carry = sum != 0
-    while(xIndex > 1 && carry) {
-      xIndex -= 1
-      result(xIndex) = x(xIndex) + 1
-      carry = result(xIndex) == 0
-    }
-
     while(xIndex > 1) {
       xIndex -= 1
-      result(xIndex) = x(xIndex)
+      result(xIndex) = x(xIndex) + (if (carry) 1 else 0)
+      if(carry) carry = result(xIndex) == 0
     }
 
     if(carry) {
@@ -331,7 +381,7 @@ object MyInt {
 
 }
 
-class MyInt(val x: Array[Long]) extends AnyVal {
+final class MyInt(val x: Array[Long]) extends AnyVal {
   import MyInt._
 
   override def toString = {
@@ -344,28 +394,64 @@ class MyInt(val x: Array[Long]) extends AnyVal {
 
   def signum = x(0)
 
-  final def +(value: MyInt): MyInt = {
-    val (sig,oSig) = (signum, value.signum)
+  def +(value: MyInt): MyInt = {
+    val sig = x(0)
+    val oSig = value.x(0)
     if(oSig == 0)
-      return this
+      this
     else if(sig == 0)
-      return value
+      value
     else if(oSig == sig)
-      return MyInt(add(x, value.x))
+      MyInt(add(x, value.x))
+    else {
+      val cmp = compareMagnitude(value)
+      if(cmp == 0)
+        ZERO
+      else {
+        val resultMag = trustedStripLeadingZeroInts(if(cmp > 0) subtract(x, value.x) else subtract(value.x, x))
 
-    val cmp = compareMagnitude(value)
-    if(cmp == 0)
-      return ZERO
+        resultMag(0) = if(cmp == sig) 1 else -1
+        MyInt(resultMag)
+      }
+    }
+  }
 
-    val resultMag = trustedStripLeadingZeroInts(if(cmp > 0) subtract(x, value.x) else subtract(value.x, x))
+  def -(value: MyInt) = {
+    val sig = x(0)
+    val oSig = value.x(0)
+    if(oSig == 0)
+      this
+    else if(sig == 0)
+      -value
+    else if(sig != oSig) {
+      val r = add(x, value.x)
+      r(0) = sig
+      MyInt(r)
+    }
+    else {
+      val cmp = compareMagnitude(value)
+      if(cmp == 0)
+        ZERO
+      else {
+        val resultMag = if(cmp > 0) subtract(x, value.x) else subtract(value.x, x)
+        resultMag(0) = if(cmp == sig) 1 else -1
+        MyInt(trustedStripLeadingZeroInts(resultMag))
+      }
+    }
+  }
 
-    resultMag(0) = if(cmp == sig) 1 else -1
-    MyInt(resultMag)
+  def unary_- = {
+    if(this == ZERO) this
+    else {
+      val nMag = java.util.Arrays.copyOf(x, x.length)
+      nMag(0) = if(x(0) == 1) -1 else 1
+      new MyInt(nMag)
+    }
   }
 
   def size = x.length
 
-  private final def compareMagnitude(value: MyInt): Int = {
+  private def compareMagnitude(value: MyInt): Int = {
     val m1 = x
     val len1 = m1.length
     val m2 = value.x
@@ -385,44 +471,88 @@ class MyInt(val x: Array[Long]) extends AnyVal {
   }
 
   def *(v: MyInt): MyInt = {
-    val (sig,oSig) = (signum, v.signum)
-
-    if(sig == 0 || oSig == 0)
-      return ZERO
+    val sig = x(0)
+    val oSig= v.x(0)
 
     val xlen = x.length
     val ylen = v.x.length
 
-    if((xlen < karatsubaThreshold) || (ylen < karatsubaThreshold)) { //TODO: THIS CODE IS FATALLY FLAWED, toomCook
+    if(sig == 0 || oSig == 0)
+      ZERO
+    else if((xlen < karatsubaThreshold) && (ylen < karatsubaThreshold) || (ylen < 4) || (xlen < 4)) { //TODO: THIS CODE IS FATALLY FLAWED, toomCook
     // will not be active unless both xlen and ylen are larger than karatsubaThreshold
       val resultSign = if(sig == oSig) 1 else -1
-      if(ylen == 2) {
-        return multiplyByLong(x, v.x(1), resultSign)
-      }
-      if(x.length == 2) {
-        return multiplyByLong(v.x, x(1), resultSign)
-      }
+      if(xlen + ylen > 4) {
+        val result = trustedStripLeadingZeroInts(multiplyToLen(x, xlen, v.x, ylen, null))
 
-      var result = multiplyToLen(x, xlen, v.x, ylen, null)
-
-      result = trustedStripLeadingZeroInts(result)
-      result(0) = resultSign
-      return MyInt(result)
+        result(0) = resultSign
+        MyInt(result)
+      } else if (ylen == 2) {
+        multiplyByLong(x, xlen, v.x(1), resultSign)
+      }
+      else {
+        multiplyByLong(v.x, ylen, x(1), resultSign)
+      }
     }
     else
       if((xlen < toomCookThreshold) && (ylen < toomCookThreshold))
-        return multiplyKaratsuba(this, v)
+        multiplyKaratsuba(this, v)
       else
-        ??? //TODO shouldMultiplySchoenhageStrassen
+        multiplySchoenhageStrassen(this,v) //TODO shouldMultiplySchoenhageStrassen
   }
 
-  private def shiftLeft64(times: Int) = {
-    val arr = new Array[Long](x.length + times)
-    Array.copy(x,0,arr,0,x.length)
-    MyInt(arr)
+  private def getLower(n: Int) = {
+    val len = x.length
+
+    if(len - 1 <= n)
+      this
+
+    val lowerLongs = new Array[Long](n+1)
+    System.arraycopy(x, len-n, lowerLongs, 1, n) //TODO: this can probably be optimized with a specialized stripleadingzeros
+    lowerLongs(0) = 1
+
+    new MyInt(trustedStripLeadingZeroInts(lowerLongs))
   }
+
+  private def getUpper(n: Int) = {
+    val len = x.length - 1
+
+    if(len <= n)
+      ZERO
+
+    val upperLen = (len - n) + 1
+    val upperLongs = new Array[Long](upperLen)
+    System.arraycopy(x, 1, upperLongs, 1, upperLen-1)
+    upperLongs(0) = 1
+
+    new MyInt(trustedStripLeadingZeroInts(upperLongs))
+  }
+
+  def <<(n: Int) = {
+    if(x(0) == 0)
+      ZERO
+    else if(n == 0)
+      this
+    else if(n < 0) {
+      if (n == Int.MinValue) {
+        throw new ArithmeticException("Shift distance of Int.MinValue not supported.")
+      } else {
+        this >> -n
+      }
+    } else {
+      val newMag = shiftLeft(x, n)
+
+      newMag(0) = x(0)
+
+      MyInt(newMag)
+    }
+  }
+
+  private def getToomSlice(lowerSize: Int, upperSize: Int, slice: Int, fullsize: Int) = ???
+
+  def >>(n: Int): MyInt = ???
 
   def *(v: Long): MyInt = this * MyInt(v)
 
-  def **(v: Int): MyInt = if(v > 1) this * (this ** (v-1)) else this
+  def **(v: Int): MyInt = if(v > 0) this * (this ** (v-1)) else ONE
 }
