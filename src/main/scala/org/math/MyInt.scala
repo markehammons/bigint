@@ -49,7 +49,7 @@ object MyInt {
 
   final def ult(a: Long, b: Long) = a + Long.MinValue < b + Long.MinValue
 
-  final def ult2(a: Long, b: Long) = if(a + Long.MinValue < b + Long.MinValue) 1 else 0
+  final def ult2(a: Long, b: Long) = if(a + Long.MinValue < b + Long.MinValue) 1l else 0l
 
   final def ult4(a: Long, b: Long) = (((a >>> 63) - (b >>> 63)) | (((a& stripSign) - (b & stripSign)) & ((b ^ a) ^ -1))) >>> 63
 
@@ -207,9 +207,11 @@ object MyInt {
         rStart -= 1
       }
 
-      if(carry == 0l)
-        rmag = java.util.Arrays.copyOfRange(rmag, 1, rmag.length)
-      else {
+      if(carry == 0l) {
+        val n = new Array[Long](rmag.length - 1)
+        System.arraycopy(rmag,2, n,1,n.length-1)
+        rmag = n
+      } else {
         rmag(1) = carry
       }
 
@@ -233,9 +235,7 @@ object MyInt {
     var carry = 0l
     var j = ystart
     val x_xstart = x(xstart)
-    /*@inline @tailrec def loop1(j: Int, k: Int, carry: Long): Long = {
-      if(j > 0) loop1(j-1,k-1,longMul(y(j), x_xstart, carry, z, k)) else carry
-    }*/
+
     while(j > 0) {
       carry = longMul(y(j), x_xstart, carry, z, j+xstart)
       j -= 1
@@ -243,18 +243,33 @@ object MyInt {
 
     z(xstart) = carry
 
-    var i = xstart-1
-    while(i > 0) {
-      carry = 0
-      j = ystart
-      val x_i = x(i)
-      while(j > 0) {
-        carry = longMul(y(j), x_i, z(j+i), carry, z, j+i)
-        j-=1
-      }
-      z(i) = carry
-      i -= 1
+    /*def firstLoop(j: Int, carry: Long): Long = {
+      if(j > 0) firstLoop(j-1, longMul(y(j), x_xstart, carry, z, j+xstart))
+      else carry
     }
+
+    z(xstart) = firstLoop(ystart,0)*/
+
+    def outerLoop(i: Int) {
+      val x_i = x(i)
+      @inline def innerLoop(j: Int, carry: Long): Long = {
+        if(j > 0) innerLoop(j-1, longMul(y(j), x_i, z(j+i), carry, z, j+i))
+        else carry
+      }
+      if(i > 0) {
+        z(i) = innerLoop(ystart, 0)
+        outerLoop(i - 1)
+      }
+    }
+
+
+    outerLoop(xstart - 1)
+
+    /*while(i > 0) {
+      implicit val x_i = x(i)
+      z(i) = innerLoop(ystart, 0)
+      i -= 1
+    }*/
 
     z
   }
@@ -381,7 +396,7 @@ object MyInt {
 
 }
 
-final class MyInt(val x: Array[Long]) extends AnyVal {
+final class MyInt(val x: Array[Long]) {
   import MyInt._
 
   override def toString = {
