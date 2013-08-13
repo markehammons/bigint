@@ -1,3 +1,5 @@
+name := "bigint"
+
 scalaVersion := "2.11.0-M4"
 
 compileOrder := CompileOrder.JavaThenScala

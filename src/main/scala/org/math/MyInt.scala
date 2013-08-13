@@ -285,6 +285,8 @@ object MyInt {
     res
   }*/
 
+
+
   def multiplyKaratsuba(x: MyInt, y: MyInt) =  {
     val xLen = x.x.length - 1
     val yLen = y.x.length - 1
@@ -308,6 +310,8 @@ object MyInt {
   }
 
   def multiplyToomCook3(x: MyInt, y: MyInt) = {???; ZERO}
+
+
 
   def multiplySchoenhageStrassen(x: MyInt, y: MyInt) = {???; ZERO}
 
@@ -396,7 +400,7 @@ object MyInt {
 
 }
 
-final class MyInt(val x: Array[Long]) {
+final class MyInt(val x: Array[Long]) extends AnyVal {
   import MyInt._
 
   override def toString = {
